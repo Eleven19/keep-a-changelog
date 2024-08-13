@@ -35,8 +35,11 @@ trait KeepAChangelogModule extends Cross.Module[String] with CrossPlatform {
     def scalaJSVersion = V.scalaJS
   }
 
-  trait TestProject extends ScalaModule with TestModule.Munit {
-    override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Agg(ivy"org.scalameta::munit::${V.munit}")
+  trait TestProject extends ScalaModule with TestModule.ZioTest {
+    override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Agg(
+      ivy"dev.zio::zio-test::${V.zio}",
+      ivy"dev.zio::zio-test-sbt::${V.zio}"
+    )
   }
 
 }
@@ -60,7 +63,7 @@ trait KeepAChangelogPublishModule extends CiReleaseModule with JavaModule {
 object V {
   val `just-semver` = "0.13.0"
   val laika         = "1.2.0"
-  val munit         = "1.0.0"
+  val zio           = "2.0.17"
 
   val scala213           = "2.13.14"
   val scala3x            = "3.3.3"
