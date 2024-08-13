@@ -14,15 +14,29 @@ object keepachangelog extends Cross[KeepAChangelogModule](V.crossScalaVersions) 
 
 trait KeepAChangelogModule extends Cross.Module[String] with CrossPlatform {
 
-  trait Shared extends CommonCrossProject with KeepAChangelogPublishModule
-  object jvm   extends CommonCrossScalaJvmProject with Shared
-  object js    extends CommonCrossScalaJsProject with Shared
+  trait Shared extends CommonCrossProject with KeepAChangelogPublishModule {
+    override def ivyDeps: T[Agg[Dep]] = Agg(
+      ivy"io.kevinlee::just-semver-core::${V.`just-semver`}",
+      ivy"org.typelevel::laika-core::${V.laika}"
+    )
+  }
+  object jvm extends CommonCrossScalaJvmProject with Shared {
+    object test extends TestProject with ScalaTests
+  }
+  object js extends CommonCrossScalaJsProject with Shared {
+    object test extends TestProject with ScalaJSTests
+  }
 
   trait CommonCrossProject extends PlatformAwareCrossScalaProject with CrossValue with TpolecatModule
       with ScalafmtModule with ScalafixModule
+
   trait CommonCrossScalaJvmProject extends CrossScalaJvmProject with CommonCrossProject
   trait CommonCrossScalaJsProject extends CrossScalaJsProject with CommonCrossProject {
-    def scalaJSVersion = V.scala3x
+    def scalaJSVersion = V.scalaJS
+  }
+
+  trait TestProject extends ScalaModule with TestModule.Munit {
+    override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Agg(ivy"org.scalameta::munit::${V.munit}")
   }
 
 }
@@ -44,10 +58,13 @@ trait KeepAChangelogPublishModule extends CiReleaseModule with JavaModule {
 }
 
 object V {
-  val laika = "1.2.0"
-  val munit = "1.0.0"
+  val `just-semver` = "0.13.0"
+  val laika         = "1.2.0"
+  val munit         = "1.0.0"
 
   val scala213           = "2.13.14"
   val scala3x            = "3.3.3"
   val crossScalaVersions = Seq(scala3x, scala213)
+
+  val scalaJS = "1.16.0"
 }
