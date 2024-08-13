@@ -18,37 +18,33 @@ final case class Changelog(
 
 object Changelog {
   val empty: Changelog = Changelog(None, None, IndexedSeq())
-  def fromMarkdownText(markdownText: String): Either[ParsingError, Changelog] = {
-    val parserBuilder = MarkupParser.of(Markdown)
-    val parser        = parserBuilder.build
 
-    val result = parser.parse(markdownText).left.map(e => ParsingError.ChangelogDocumentParseError(e.message))
-    result.map { document =>
-      var first                       = true
-      var projectName: Option[String] = None
-      var description: Option[String] = None
-      document.sections.foreach { section =>
-        if (first) {
-          projectName =
-            Option(section.title.content.collect { case container: TextContainer => container.content }.mkString)
-          description = Option(section.content.toString())
-          first = false
-        }
-        println(section.title)
-        section.content.foreach { content =>
-          println(content)
-        }
-
-        if (first) {
-          first = false
-        }
+  def fromDocument(document: Document): Either[ParsingError, Changelog] = {
+    var first                       = true
+    var projectName: Option[String] = None
+    val description: Option[String] = None
+    document.sections.foreach { section =>
+      if (first) {
+        projectName =
+          Option(section.title.content.collect { case container: TextContainer => container.content }.mkString)
+        println(s"[First Section Title]${section.title}")
+        first = false
       }
+    }
+    Right(
       Changelog(
         projectName = projectName,
         description = description,
         entries = IndexedSeq()
       )
+    )
+  }
 
-    }
+  def fromMarkdownText(markdownText: String): Either[ParsingError, Changelog] = {
+    val parserBuilder = MarkupParser.of(Markdown)
+    val parser        = parserBuilder.build
+
+    val result = parser.parse(markdownText).left.map(e => ParsingError.ChangelogDocumentParseError(e.message))
+    result.flatMap(fromDocument)
   }
 }

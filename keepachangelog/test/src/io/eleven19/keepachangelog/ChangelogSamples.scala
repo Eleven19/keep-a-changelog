@@ -1,4 +1,43 @@
 package io.eleven19.keepachangelog
+//import io.eleven19.keepachangelog.errors.Error
+import zio._
+
+trait ChangelogSampleDataProvider {
+  def standardSampleContent: IO[Throwable, String]
+}
+
+object ChangelogSampleDataProvider {
+  val live = ChangelogSampleDataProviderLive.layer
+
+  def standardSampleContent: ZIO[ChangelogSampleDataProvider, Throwable, String] =
+    ZIO.serviceWithZIO(_.standardSampleContent)
+}
+
+case class ChangelogSampleDataProviderLive() extends ChangelogSampleDataProvider {
+  def standardSampleContent: IO[Throwable, String] =
+    for {
+      maybeResourceRoot <- System.env("MILL_TEST_RESOURCE_DIR")
+      altResourceFolder = ChangelogSampleDataProviderLive.resourceFolder
+      resourceRoot <- ZIO.attempt(maybeResourceRoot.getOrElse(altResourceFolder))
+      path = s"$resourceRoot/CHANGELOG.md"
+      // _       <- ZIO.logWarning(s"Reading file from path: $path")
+      content <- ZIO.readFile(path)
+    } yield content
+}
+
+object ChangelogSampleDataProviderLive {
+
+  val layer: ZLayer[Any, Nothing, ChangelogSampleDataProvider] =
+    ZLayer.fromFunction((_: Any) => ChangelogSampleDataProviderLive())
+
+  val resourceFolder = {
+    val thisFile         = sourcecode.File()
+    val thisFileSegments = thisFile.split(sys.props("file.separator"))
+    val thisFileFolder =
+      (thisFileSegments.dropRight(5) ++ Seq("resources")).mkString(sys.props("file.separator"))
+    thisFileFolder
+  }
+}
 
 object ChangelogSamples {
   object KeepAChangelog {
@@ -6,6 +45,8 @@ object ChangelogSamples {
 //      val resource = Source.fromResource("CHANGELOG.md")
 //      resource.toString()
 //    }
+
+    // val default = ZIO.readFile()
 
     lazy val standard =
       """# Changelog
