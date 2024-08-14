@@ -5,7 +5,7 @@ import laika.ast._
 import laika.format.Markdown
 import java.time.LocalDate
 import just.semver.SemVer
-import cats.data.Op
+import scala.util.matching.Regex
 
 sealed abstract class ChangelogElement extends Product with Serializable
 
@@ -48,7 +48,7 @@ object Changelog {
 
   private[keepachangelog] def fromSection(section: Section) = {
     val projectName = section.header.extractText
-    val (paragraphs, _) = {
+    val (paragraphs, sections) = {
       val paras = List.newBuilder[Paragraph]
       val secs  = List.newBuilder[Section]
       section.content.foreach {
@@ -59,9 +59,11 @@ object Changelog {
       (paras.result(), secs.result())
     }
     val description = paragraphs.map(_.extractText).mkString(System.lineSeparator())
+    val entries     = sections.map(ChangelogEntry.fromSection)
     Changelog(
-      projectName = projectName,
-      description = description
+      projectName = Option(projectName),
+      description = Option(description),
+      entries = entries.toIndexedSeq
     )
   }
 
@@ -105,14 +107,54 @@ sealed trait VersionedChangelogEntry extends ChangelogEntry {
 
 object ChangelogEntry {
 
-  object Version {
-    def unapply(input: String): Option[SemVer] = SemVer.parse(input).toOption
+  private[keepachangelog] def fromSection(section: Section): ChangelogEntry = {
+    val textSpans = section.header.collect { case Text(content, _) => content }
+    textSpans match {
+      case Extractors.Unreleased() => Unreleased()
+      case Extractors.VersionAndReleaseDate(version, releaseDate, yanked) =>
+        Released(version, releaseDate, yanked = yanked)
+      case Extractors.Version(version) :: _ => Versioned(version)
+      // case Released(version, date, yanked) => Released(version, date, yanked)
+      case _ => throw new RuntimeException(s"Could not parse section header: $textSpans")
+    }
   }
 
-  final case class Released(version: SemVer, date: LocalDate, yanked: Boolean) extends VersionedChangelogEntry
-  final case class Versioned(version: SemVer)                                  extends VersionedChangelogEntry
-  final case class Unreleased(contents: IndexedSeq[ChangelogSection])          extends ChangelogEntry
+  final case class Released(version: SemVer, date: LocalDate, yanked: Boolean)           extends VersionedChangelogEntry
+  final case class Versioned(version: SemVer)                                            extends VersionedChangelogEntry
+  final case class Unreleased(contents: IndexedSeq[ChangelogSection] = IndexedSeq.empty) extends ChangelogEntry
 
+  object Extractors {
+    private val HeaderSeparatorPattern: Regex = "^\\s*-\\s*".r
+
+    object Unreleased {
+      def unapply(input: Any): Boolean =
+        input match {
+          case versionString: String        => versionString.compareToIgnoreCase("Unreleased") == 0
+          case (versionString: String) :: _ => versionString.compareToIgnoreCase("Unreleased") == 0
+          case _                            => false
+        }
+    }
+
+    object Version {
+      def unapply(input: String): Option[SemVer] = SemVer.parse(input).toOption
+      def unapply(input: List[String]): Option[SemVer] = input match {
+        case input :: _ => SemVer.parse(input).toOption
+        case _          => None
+      }
+    }
+
+    object VersionAndReleaseDate {
+      def unapply(input: List[String]): Option[(SemVer, LocalDate, Boolean)] = input match {
+        case version :: date :: "[YANKED]" :: _ =>
+          val releaseDate = LocalDate.parse(date.replaceFirst(HeaderSeparatorPattern.regex, ""))
+          SemVer.parse(version).toOption.map((_, releaseDate, true))
+        case version :: date :: _ =>
+          val releaseDate = LocalDate.parse(date.replaceFirst(HeaderSeparatorPattern.regex, ""))
+          SemVer.parse(version).toOption.map((_, releaseDate, false))
+        case _ => None
+      }
+    }
+  }
 }
 
 final case class ChangelogSection(changeType: ChangeType, items: IndexedSeq[String]) extends ChangelogElement { self =>
