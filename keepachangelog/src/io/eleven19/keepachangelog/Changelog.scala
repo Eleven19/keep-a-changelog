@@ -13,17 +13,48 @@ final case class Changelog(
     projectName: Option[String],
     description: Option[String],
     entries: IndexedSeq[ChangelogEntry]
-) extends ChangelogElement {
-  self =>
+) extends ChangelogElement { self =>
+  import Changelog._
+  import ChangelogEntry._
+
   def +(entry: ChangelogEntry): Changelog                         = self.copy(entries = entries.appended(entry))
   def projectNameOrDefault(default: String): String               = projectName.getOrElse(default)
   def descriptionOrDefault(default: String): String               = description.getOrElse(default)
   def withEntries(entries: IndexedSeq[ChangelogEntry]): Changelog = self.copy(entries = entries)
   def withEntries(entries: ChangelogEntry*): Changelog            = self.copy(entries = entries.toIndexedSeq)
   def withSortedEntries: Changelog                                = self.copy(entries = entries.sorted)
+  def allUnreleased: IndexedSeq[Unreleased]                       = entries.collect { case u: Unreleased => u }
+  def unreleased: Option[Unreleased]                              = entries.collectFirst { case u: Unreleased => u }
+  def pending: IndexedSeq[PendingChangelogEntry] = entries.collect { case p: PendingChangelogEntry => p }
+  def lastOfKind: LastOfKind = {
+    var result = LastOfKind(None, None, None)
+    entries.foreach { entry =>
+      (entry, result) match {
+        case (candidate @ Unreleased(_), _) =>
+          // The last encountered unreleased entry is always selected
+          result = result.copy(unreleased = Some(candidate))
+        case (candidate @ Versioned(_, _), LastOfKind(_, None, _)) =>
+          // If we haven't seen a versioned entry yet, select this one
+          result = result.copy(versioned = Some(candidate))
+        case (candidate @ Versioned(_, _), LastOfKind(_, Some(Versioned(currentVersion, _)), _)) =>
+          // If we have seen a versioned entry, select this one if it has a higher version
+          if (candidate.version > currentVersion) result = result.copy(versioned = Some(candidate))
+        case (candidate @ Released(_, _, _, _), LastOfKind(_, _, None)) =>
+          // If we haven't seen a released entry yet, select this one
+          result = result.copy(released = Some(candidate))
+        case (candidate @ Released(_, _, _, _), LastOfKind(_, _, Some(Released(currentVersion, _, _, _)))) =>
+          // If we have seen a released entry, select this one if it has a higher version
+          if (candidate.version > currentVersion) result = result.copy(released = Some(candidate))
+      }
+    }
+    result
+  }
+
+  def lastVersionOfKind: LastVersionOfKind = lastOfKind.lastVersionOfKind
 }
 
 object Changelog {
+  import ChangelogEntry._
   val empty: Changelog = Changelog(None, None, IndexedSeq())
 
   def apply(projectName: String): Changelog         = Changelog(Some(projectName), None, IndexedSeq())
@@ -79,6 +110,26 @@ object Changelog {
     val result = parser.parse(markdownText).left.map(e => ParsingError.ChangelogDocumentParseError(e.message))
     result.map(fromDocument)
   }
+
+  final case class LastOfKind(
+      unreleased: Option[Unreleased],
+      versioned: Option[Versioned],
+      released: Option[Released]
+  ) { self =>
+    def lastVersionOfKind: LastVersionOfKind =
+      LastVersionOfKind(
+        unreleased = self.unreleased.map(_ => ()),
+        versioned = self.versioned.map(_.version),
+        released = self.released.map(_.version)
+      )
+
+  }
+  final case class LastVersionOfKind(unreleased: Option[Unit], versioned: Option[Version], released: Option[Version]) {
+    self =>
+    def hasUnreleased: Boolean = self.unreleased.isDefined
+    def hasVersioned: Boolean  = self.versioned.isDefined
+    def hasReleased: Boolean   = self.released.isDefined
+  }
 }
 
 sealed trait ChangelogEntry extends ChangelogElement { self =>
@@ -102,6 +153,12 @@ sealed trait ChangelogEntry extends ChangelogElement { self =>
     case _: Released   => Tag.Released
   }
 
+  final def versionOption: Option[Version] = self match {
+    case Versioned(version, _)      => Some(version)
+    case Released(version, _, _, _) => Some(version)
+    case _                          => None
+  }
+
   final def wasYanked: Boolean = self match {
     case Released(_, _, yanked, _) => yanked
     case _                         => false
@@ -112,10 +169,6 @@ sealed trait ChangelogEntry extends ChangelogElement { self =>
     case (entry @ Released(_, _, _, _)) => entry.copy(sections = sections)
     case (entry @ Unreleased(_))        => entry.copy(sections = sections)
   }
-}
-
-sealed trait VersionedChangelogEntry extends ChangelogEntry {
-  def version: Version
 }
 
 object ChangelogEntry {
@@ -136,6 +189,20 @@ object ChangelogEntry {
     }
   }
 
+  sealed trait VersionedChangelogEntry extends ChangelogEntry {
+    def version: Version
+  }
+
+  sealed trait PendingChangelogEntry extends ChangelogEntry
+
+  object PendingChangelogEntry {
+    def unapply(entry: ChangelogEntry): Option[(Tag, Option[Version])] = entry match {
+      case v: Versioned  => Some((v.tag, Some(v.version)))
+      case v: Unreleased => Some((v.tag, None))
+      case _             => None
+    }
+  }
+
   final case class Released(
       version: Version,
       date: LocalDate,
@@ -143,8 +210,9 @@ object ChangelogEntry {
       sections: IndexedSeq[ChangelogSection] = IndexedSeq.empty
   ) extends VersionedChangelogEntry
   final case class Versioned(version: Version, sections: IndexedSeq[ChangelogSection] = IndexedSeq.empty)
-      extends VersionedChangelogEntry
+      extends VersionedChangelogEntry with PendingChangelogEntry
   final case class Unreleased(sections: IndexedSeq[ChangelogSection] = IndexedSeq.empty) extends ChangelogEntry
+      with PendingChangelogEntry
 
   sealed abstract class Tag(val value: Int) extends Product with Serializable
   object Tag {

@@ -11,6 +11,7 @@ package object keepachangelog {
   object Version extends Subtype[SemVer] {
     def parse(s: String): Either[ParsingError, Version] =
       SemVer.parse(s).map(wrap(_)).leftMap(ParsingError.SemVerParseError(_))
+    def parseUnsafe(s: String): Version             = wrap(SemVer.parseUnsafe(s))
     implicit val ShowVersion: Show[Version]         = Show.show(v => v.value.toString)
     implicit val VersionOrdering: Ordering[Version] = Ordering.by(_.value)
 
