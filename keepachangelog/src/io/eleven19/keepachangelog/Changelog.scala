@@ -4,8 +4,8 @@ import laika.api._
 import laika.ast._
 import laika.format.Markdown
 import java.time.LocalDate
-import just.semver.SemVer
 import scala.util.matching.Regex
+import io.eleven19.keepachangelog.Version
 
 sealed abstract class ChangelogElement extends Product with Serializable
 
@@ -81,47 +81,62 @@ object Changelog {
   }
 }
 
-sealed trait ChangelogEntry extends ChangelogElement with Ordered[ChangelogEntry] { self =>
+sealed trait ChangelogEntry extends ChangelogElement { self =>
+  import ChangelogEntry._
 
-  def compare(that: ChangelogEntry): Int =
-    (self, that) match {
-      case (ChangelogEntry.Unreleased(_), ChangelogEntry.Unreleased(_)) =>
-        0
-      case _ => ???
-    }
-
-  def wasYanked: Boolean = self match {
-    case ChangelogEntry.Released(_, _, yanked) => yanked
-    case _                                     => false
+  final def hasReleaseDate: Boolean = self match {
+    case Released(_, _, _) => true
+    case _                 => false
   }
 
-  def releaseDate: Option[LocalDate] = self match {
-    case ChangelogEntry.Released(_, date, _) => Some(date)
-    case _                                   => None
+  final def releaseDate: Option[LocalDate] = self match {
+    case Released(_, date, _) => Some(date)
+    case _                    => None
+  }
+
+  final def tag: Tag = self match {
+    case _: Unreleased => Tag.Unreleased
+    case _: Versioned  => Tag.Versioned
+    case _: Released   => Tag.Released
+  }
+
+  final def wasYanked: Boolean = self match {
+    case Released(_, _, yanked) => yanked
+    case _                      => false
   }
 }
 
 sealed trait VersionedChangelogEntry extends ChangelogEntry {
-  def version: SemVer
+  def version: Version
 }
 
 object ChangelogEntry {
+
+  implicit val ChangelogEntryOrdering: Ordering[ChangelogEntry] =
+    Ordering.by[ChangelogEntry, Int](_.tag.value).orElseBy(_.releaseDate).orElseBy(_.wasYanked)
 
   private[keepachangelog] def fromSection(section: Section): ChangelogEntry = {
     val textSpans = section.header.collect { case Text(content, _) => content }
     textSpans match {
       case Extractors.Unreleased() => Unreleased()
-      case Extractors.VersionAndReleaseDate(version, releaseDate, yanked) =>
+      case Extractors.HasVersionAndReleaseDate(version, releaseDate, yanked) =>
         Released(version, releaseDate, yanked = yanked)
-      case Extractors.Version(version) :: _ => Versioned(version)
+      case Extractors.HasVersion(version) :: _ => Versioned(version)
       // case Released(version, date, yanked) => Released(version, date, yanked)
       case _ => throw new RuntimeException(s"Could not parse section header: $textSpans")
     }
   }
 
-  final case class Released(version: SemVer, date: LocalDate, yanked: Boolean)           extends VersionedChangelogEntry
-  final case class Versioned(version: SemVer)                                            extends VersionedChangelogEntry
+  final case class Released(version: Version, date: LocalDate, yanked: Boolean)          extends VersionedChangelogEntry
+  final case class Versioned(version: Version)                                           extends VersionedChangelogEntry
   final case class Unreleased(contents: IndexedSeq[ChangelogSection] = IndexedSeq.empty) extends ChangelogEntry
+
+  sealed abstract class Tag(val value: Int) extends Product with Serializable
+  object Tag {
+    case object Unreleased extends Tag(0)
+    case object Versioned  extends Tag(1)
+    case object Released   extends Tag(2)
+  }
 
   object Extractors {
     private val HeaderSeparatorPattern: Regex = "^\\s*-\\s*".r
@@ -135,22 +150,27 @@ object ChangelogEntry {
         }
     }
 
-    object Version {
-      def unapply(input: String): Option[SemVer] = SemVer.parse(input).toOption
-      def unapply(input: List[String]): Option[SemVer] = input match {
-        case input :: _ => SemVer.parse(input).toOption
+    object HasVersion {
+      def unapply(input: String): Option[Version] = ??? // Version.parse(input).toOption
+      def unapply(input: List[String]): Option[Version] = input match {
+        case input :: _ => Version.parse(input).toOption
         case _          => None
+      }
+      def unapply(entry: ChangelogEntry): Option[Version] = entry match {
+        case Released(version, _, _) => Some(version)
+        case Versioned(version)      => Some(version)
+        case _                       => None
       }
     }
 
-    object VersionAndReleaseDate {
-      def unapply(input: List[String]): Option[(SemVer, LocalDate, Boolean)] = input match {
+    object HasVersionAndReleaseDate {
+      def unapply(input: List[String]): Option[(Version, LocalDate, Boolean)] = input match {
         case version :: date :: "[YANKED]" :: _ =>
           val releaseDate = LocalDate.parse(date.replaceFirst(HeaderSeparatorPattern.regex, ""))
-          SemVer.parse(version).toOption.map((_, releaseDate, true))
+          Version.parse(version).toOption.map((_, releaseDate, true))
         case version :: date :: _ =>
           val releaseDate = LocalDate.parse(date.replaceFirst(HeaderSeparatorPattern.regex, ""))
-          SemVer.parse(version).toOption.map((_, releaseDate, false))
+          Version.parse(version).toOption.map((_, releaseDate, false))
         case _ => None
       }
     }
