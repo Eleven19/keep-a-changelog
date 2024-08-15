@@ -39,4 +39,14 @@ object ChangeType {
   case object Security   extends ChangeType
   @nowarn
   case class Custom private[keepachangelog] (name: String) extends ChangeType
+
+  object Parse {
+    def unapply(s: String): Option[ChangeType] = Some(fromString(s))
+
+    def unapply(segments: List[String]): Option[(ChangeType, List[String])] = segments match {
+      case head :: tail => Some((ChangeType.fromString(head), tail))
+      case _            => None
+    }
+
+  }
 }

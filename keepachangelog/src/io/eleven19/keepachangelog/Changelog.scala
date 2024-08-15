@@ -85,14 +85,16 @@ sealed trait ChangelogEntry extends ChangelogElement { self =>
   import ChangelogEntry._
 
   final def hasReleaseDate: Boolean = self match {
-    case Released(_, _, _) => true
-    case _                 => false
+    case Released(_, _, _, _) => true
+    case _                    => false
   }
 
   final def releaseDate: Option[LocalDate] = self match {
-    case Released(_, date, _) => Some(date)
-    case _                    => None
+    case Released(_, date, _, _) => Some(date)
+    case _                       => None
   }
+
+  def sections: IndexedSeq[ChangelogSection]
 
   final def tag: Tag = self match {
     case _: Unreleased => Tag.Unreleased
@@ -101,8 +103,14 @@ sealed trait ChangelogEntry extends ChangelogElement { self =>
   }
 
   final def wasYanked: Boolean = self match {
-    case Released(_, _, yanked) => yanked
-    case _                      => false
+    case Released(_, _, yanked, _) => yanked
+    case _                         => false
+  }
+
+  final def withSections(sections: IndexedSeq[ChangelogSection]): ChangelogEntry = self match {
+    case (entry @ Versioned(_, _))      => entry.copy(sections = sections)
+    case (entry @ Released(_, _, _, _)) => entry.copy(sections = sections)
+    case (entry @ Unreleased(_))        => entry.copy(sections = sections)
   }
 }
 
@@ -117,19 +125,26 @@ object ChangelogEntry {
 
   private[keepachangelog] def fromSection(section: Section): ChangelogEntry = {
     val textSpans = section.header.collect { case Text(content, _) => content }
+    val sections  = section.content.collect { case s: Section => ChangelogSection.fromSection(s) }.toIndexedSeq
     textSpans match {
-      case Extractors.Unreleased() => Unreleased()
+      case Extractors.Unreleased() => Unreleased(sections = sections)
       case Extractors.HasVersionAndReleaseDate(version, releaseDate, yanked) =>
-        Released(version, releaseDate, yanked = yanked)
-      case Extractors.HasVersion(version) :: _ => Versioned(version)
+        Released(version, releaseDate, yanked = yanked, sections = sections)
+      case Extractors.HasVersion(version) :: _ => Versioned(version, sections = sections)
       // case Released(version, date, yanked) => Released(version, date, yanked)
       case _ => throw new RuntimeException(s"Could not parse section header: $textSpans")
     }
   }
 
-  final case class Released(version: Version, date: LocalDate, yanked: Boolean)          extends VersionedChangelogEntry
-  final case class Versioned(version: Version)                                           extends VersionedChangelogEntry
-  final case class Unreleased(contents: IndexedSeq[ChangelogSection] = IndexedSeq.empty) extends ChangelogEntry
+  final case class Released(
+      version: Version,
+      date: LocalDate,
+      yanked: Boolean,
+      sections: IndexedSeq[ChangelogSection] = IndexedSeq.empty
+  ) extends VersionedChangelogEntry
+  final case class Versioned(version: Version, sections: IndexedSeq[ChangelogSection] = IndexedSeq.empty)
+      extends VersionedChangelogEntry
+  final case class Unreleased(sections: IndexedSeq[ChangelogSection] = IndexedSeq.empty) extends ChangelogEntry
 
   sealed abstract class Tag(val value: Int) extends Product with Serializable
   object Tag {
@@ -157,9 +172,9 @@ object ChangelogEntry {
         case _          => None
       }
       def unapply(entry: ChangelogEntry): Option[Version] = entry match {
-        case Released(version, _, _) => Some(version)
-        case Versioned(version)      => Some(version)
-        case _                       => None
+        case Released(version, _, _, _) => Some(version)
+        case Versioned(version, _)      => Some(version)
+        case _                          => None
       }
     }
 
@@ -186,4 +201,21 @@ final case class ChangelogSection(changeType: ChangeType, items: IndexedSeq[Stri
 
 object ChangelogSection {
   implicit val ordering: Ordering[ChangelogSection] = Ordering.by((section: ChangelogSection) => section.changeType)
+
+  private[keepachangelog] def fromSection(section: Section): ChangelogSection = {
+    val changeType = section.collect { case Text(content, _) => content } match {
+      case ChangeType.Parse(changeType, _) => changeType
+      case _                               => ChangeType.Custom("unknown")
+    }
+
+    val items = section.collect {
+      case (bi @ BulletListItem(_, _, _)) =>
+        (for {
+          text <- bi.collect { case Text(content, _) => content }
+
+        } yield text).mkString(System.lineSeparator())
+    }
+
+    ChangelogSection(changeType, items.toIndexedSeq)
+  }
 }
