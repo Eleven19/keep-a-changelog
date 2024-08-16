@@ -101,6 +101,7 @@ object MyAliases extends Aliases {
   def compileall  = alias("__.compile")
   def comptestall = alias("__.compile", "__.test")
   def publishAll  = alias("mill.local.plugins.ci.release.ReleaseModule/publishAll")
+  def reformatAll = alias("mill.scalalib.scalafmt.ScalafmtModule/reformatAll __.sources")
 }
 
 object V {
