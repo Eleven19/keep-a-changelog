@@ -3,18 +3,20 @@ import mill.scalajslib.api.JsEnvConfig.Phantom
 import mill.scalajslib.api.JsEnvConfig.Selenium
 import mill.scalajslib.api.JsEnvConfig.ExoegoJsDomNodeJs
 import mill.scalajslib.api.JsEnvConfig.NodeJs
-import mill.codesig.JvmModel.JType.Prim.J
 import $ivy.`io.github.davidgregory084::mill-tpolecat::0.3.5`
 import $ivy.`com.goyeau::mill-scalafix::0.3.1`
-import $ivy.`io.chris-kipp::mill-ci-release::0.1.9`
+import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
 import $ivy.`com.carlosedp::mill-aliases::0.4.1`
 import $ivy.`io.eleven19.mill::mill-crossbuild::0.3.0`
 import $ivy.`com.lihaoyi::mill-contrib-buildinfo:`
+import $ivy.`com.github.lolgab::mill-mima::0.1.1`
+import $file.project.ci.release
 import mill._, mill.scalalib._, mill.scalajslib._, mill.scalanativelib._, scalafmt._
 import com.goyeau.mill.scalafix.ScalafixModule
 import com.carlosedp.aliases._
 import io.eleven19.mill.crossbuild._
-import io.kipp.mill.ci.release.CiReleaseModule
+import com.github.lolgab.mill.mima._
+import de.tobiasroeser.mill.vcs.version.VcsVersion
 import io.github.davidgregory084.TpolecatModule
 import mill.contrib.buildinfo.BuildInfo
 
@@ -76,8 +78,9 @@ trait KeepAChangelogModule extends Cross.Module[String] with CrossPlatform {
 
 }
 
-trait KeepAChangelogPublishModule extends CiReleaseModule with JavaModule {
+trait KeepAChangelogPublishModule extends PublishModule with JavaModule {
   import mill.scalalib.publish._
+  def publishVersion = VcsVersion.vcsState().format()
   def packageDescription =
     "Provides types and functions for working with changelog files in the Keep a Changelog format."
   def pomSettings = PomSettings(
