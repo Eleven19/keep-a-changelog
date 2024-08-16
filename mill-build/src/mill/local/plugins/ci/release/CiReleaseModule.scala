@@ -1,4 +1,5 @@
-import mill.eval.Evaluator
+package mill.local.plugins.ci.release
+
 import de.tobiasroeser.mill.vcs.version.VcsVersion
 import mill._
 import mill.api.Result
@@ -15,42 +16,6 @@ import java.nio.charset.StandardCharsets
 import java.util.Base64
 import scala.annotation.nowarn
 import scala.util.control.NonFatal
-
-object Discover {
-  implicit def millEvaluatorTokenReader =
-    mill.main.TokenReaders.millEvaluatorTokenReader
-}
-
-object Eval {
-
-  def evalOrThrow(ev: Evaluator): Evaluator.EvalOrThrow = ev.evalOrThrow()
-
-}
-
-final case class Env(
-    pgpSecret: String,
-    pgpPassword: String,
-    isTag: Boolean,
-    sonatypeUser: String,
-    sonatypePassword: String
-) {
-
-  /**
-   * Sonatype creds in the format that Mill uses
-   */
-  val sonatypeCreds: String = s"${sonatypeUser}:${sonatypePassword}"
-}
-
-object Env {
-  implicit def rw: upickle.default.ReadWriter[Env] =
-    upickle.default.macroRW
-}
-
-sealed trait SonatypeHost
-object SonatypeHost {
-  case object Legacy extends SonatypeHost
-  case object s01    extends SonatypeHost
-}
 
 /**
  * Helper module extending PublishModule. We use our own Trait to have a bit more control over things and so that we can
