@@ -2,23 +2,28 @@ name: ci
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - '*'
+    branches: ["main"]
+    tags: ['*']
   pull_request:
-    branches:
-      - main
+    branches: ["main"]
   workflow_dispatch:
+
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true    
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - uses: coursier/cache-action@v6
+
+    - name: Cache packages
+      uses: coursier/cache-action@v6
+      id: coursier-cache
+
     - uses: actions/setup-java@v4
       with:
         java-version: "11"
@@ -39,10 +44,11 @@ jobs:
     - name: Test
       run:
         ./mill --no-server --disable-ticker __.test
-  publish-sonatype:
-    if: github.repository == 'Eleven19/keep-a-changelog' && (contains(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
-    needs: build
-    runs-on: ubuntu-22.04
+        
+  publish-snapshot:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [build]
+    runs-on: ubuntu-latest
     env:
       SONATYPE_PGP_PRIVATE_KEY: ${{ secrets.SONATYPE_PGP_PRIVATE_KEY }}
       SONATYPE_PGP_PRIVATE_KEY_PASSWORD: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
@@ -55,7 +61,48 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: coursier/cache-action@v6
+      
+      - name: Cache packages
+        uses: coursier/cache-action@v6
+        id: coursier-cache
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "11"
+          architecture: "x64"
+          distribution: "temurin"
+      - name: Publish to Maven Central
+        run: ./mill -i mill.local.plugins.ci.release.ReleaseModule/publishAll
+        env:
+          PGP_PASSPHRASE: ${{ secrets.ELEVEN19_IO_PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
+          SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
+          SONATYPE_USERNAME: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}        
+
+  publish-release:
+    if: github.repository == 'Eleven19/keep-a-changelog' && (contains(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    env:
+      SONATYPE_PGP_PRIVATE_KEY: ${{ secrets.SONATYPE_PGP_PRIVATE_KEY }}
+      SONATYPE_PGP_PRIVATE_KEY_PASSWORD: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
+      SONATYPE_USER: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}
+      SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
+      LANG: "en_US.UTF-8"
+      LC_MESSAGES: "en_US.UTF-8"
+      LC_ALL: "en_US.UTF-8"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache packages
+        uses: coursier/cache-action@v6
+        id: coursier-cache
+
       - uses: actions/setup-java@v4
         with:
           java-version: "11"
@@ -68,3 +115,10 @@ jobs:
           PGP_SECRET: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
           SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
           SONATYPE_USERNAME: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}
+
+      - name: Publish release from tag
+        uses: ghalactic/github-release-from-tag@v5
+        with:
+          generateReleaseNotes: "true"
+          prerelease: "false"
+          draft: "false"
