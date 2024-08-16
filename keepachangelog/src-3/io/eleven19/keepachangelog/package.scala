@@ -1,10 +1,10 @@
 package io.eleven19
 
+import cats.Show
+import cats.syntax.all._
 import io.eleven19.keepachangelog.errors._
 import io.eleven19.keepachangelog.internal.Subtype
 import just.semver.SemVer
-import cats.syntax.all._
-import cats.Show
 
 package object keepachangelog {
   type Version = Version.Type

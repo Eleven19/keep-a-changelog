@@ -1,11 +1,12 @@
 package io.eleven19.keepachangelog
-import errors.ParsingError
+import io.eleven19.keepachangelog.Version
+import io.eleven19.keepachangelog.errors.ParsingError
 import laika.api._
 import laika.ast._
 import laika.format.Markdown
+
 import java.time.LocalDate
 import scala.util.matching.Regex
-import io.eleven19.keepachangelog.Version
 
 sealed abstract class ChangelogElement extends Product with Serializable
 
