@@ -54,7 +54,7 @@ jobs:
       pull-requests: read
     env:
       PGP_SECRET: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
-      PGP_PASSPHASE: ${{ secrets.ELEVEN19_IO_PGP_PASSPHRASE }}
+      PGP_PASSPHRASE: ${{ secrets.ELEVEN19_IO_PGP_PASSPHRASE }}
       SONATYPE_USERNAME: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}
       SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
       LANG: "en_US.UTF-8"
