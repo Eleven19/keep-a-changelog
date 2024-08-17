@@ -6,7 +6,10 @@ import mill.define.Command
 import mill.define.ExternalModule
 import mill.define.Task
 import mill.eval.Evaluator
-import mill.main.Tasks
+import scala.annotation.nowarn
+import java.util.Base64
+import java.nio.charset.StandardCharsets
+import scala.util.control.NonFatal
 
 // In here for the Discover import
 @nowarn("msg=Unused import")
@@ -79,4 +82,8 @@ object ReleaseSetupModule extends ExternalModule {
       )
     }
   }
+
+  import Discover._
+  lazy val millDiscover: mill.define.Discover[this.type] =
+    mill.define.Discover[this.type]
 }
