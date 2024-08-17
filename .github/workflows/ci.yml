@@ -80,16 +80,16 @@ jobs:
 
       - name: Publish to Maven Central
         run: |
-          ./mill --no-server --disable-ticker mill.contrib.sonatypecentral.SonatypeCentralPublishModule/publishAll \
+          ./mill -i --disable-ticker \
+              mill.contrib.sonatypecentral.SonatypeCentralPublishModule/publishAll \
               --username $SONATYPE_USERNAME \
               --password $SONATYPE_PASSWORD \
               --gpgArgs --passphrase=$PGP_PASSPHRASE,--no-tty,--pinentry-mode,loopback,--batch,--yes,-a,-b \
-              --publishArtifacts __.publishArtifacts \
+              --publishArtifacts keepachangelog.__.publishArtifacts \
               --readTimeout 600000 \
               --awaitTimeout 600000 \
-              --connectionTimeout 600000 \
               --shouldRelease true \
-              --bundleName io.eleven19.keep-a-changelog:$GITHUB_SHA
+              --bundleName "io.eleven19.keep-a-changelog:$GITHUB_SHA"
 
       - name: Publish release from tag
         uses: ghalactic/github-release-from-tag@v5
