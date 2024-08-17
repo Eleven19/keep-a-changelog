@@ -45,40 +45,6 @@ jobs:
       run:
         ./mill --no-server --disable-ticker __.test
         
-  publish-snapshot:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    needs: [build]
-    runs-on: ubuntu-latest
-    env:
-      SONATYPE_PGP_PRIVATE_KEY: ${{ secrets.SONATYPE_PGP_PRIVATE_KEY }}
-      SONATYPE_PGP_PRIVATE_KEY_PASSWORD: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
-      SONATYPE_USER: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}
-      SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
-      LANG: "en_US.UTF-8"
-      LC_MESSAGES: "en_US.UTF-8"
-      LC_ALL: "en_US.UTF-8"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Cache packages
-        uses: coursier/cache-action@v6
-        id: coursier-cache
-
-      - uses: actions/setup-java@v4
-        with:
-          java-version: "11"
-          architecture: "x64"
-          distribution: "temurin"
-      - name: Publish to Maven Central
-        run: ./mill -i mill.local.plugins.ci.release.ReleaseModule/publishAll
-        env:
-          PGP_PASSPHRASE: ${{ secrets.ELEVEN19_IO_PGP_PASSPHRASE }}
-          PGP_SECRET: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
-          SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
-          SONATYPE_USERNAME: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}        
-
   publish-release:
     if: github.repository == 'Eleven19/keep-a-changelog' && (contains(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     needs: build
