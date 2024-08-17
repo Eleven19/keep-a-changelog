@@ -53,8 +53,8 @@ jobs:
       contents: write
       pull-requests: read
     env:
-      SONATYPE_PGP_PRIVATE_KEY: ${{ secrets.SONATYPE_PGP_PRIVATE_KEY }}
-      SONATYPE_PGP_PRIVATE_KEY_PASSWORD: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
+      SONATYPE_PGP_PRIVATE_KEY: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
+      SONATYPE_PGP_PRIVATE_KEY_PASSWORD: ${{ secrets.ELEVEN19_IO_PGP_PASSPHRASE }}
       SONATYPE_USER: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}
       SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
       LANG: "en_US.UTF-8"
@@ -74,13 +74,22 @@ jobs:
           java-version: "11"
           architecture: "x64"
           distribution: "temurin"
+
+      - name: Setup For Release (i.e. GPG)
+        run: ./mill -i mill.local.plugins.ci.release.ReleaseSetupModule/setup
+
       - name: Publish to Maven Central
-        run: ./mill -i mill.local.plugins.ci.release.SonatypeCentralReleaseModule/publishAll
-        env:
-          PGP_PASSPHRASE: ${{ secrets.ELEVEN19_IO_PGP_PASSPHRASE }}
-          PGP_SECRET: ${{ secrets.ELEVEN19_IO_PGP_SECRET_BASE64 }}
-          SONATYPE_PASSWORD: ${{ secrets.ELEVEN19_SONATYPE_PASSWORD }}
-          SONATYPE_USERNAME: ${{ secrets.ELEVEN19_SONATYPE_USERNAME }}
+        run: |
+          ./mill --no-server --disable-ticker mill.contrib.sonatypecentral.SonatypeCentralPublishModule/publishAll \
+              --username $SONATYPE_USER \
+              --password $SONATYPE_PASSWORD \
+              --gpgArgs --passphrase=$SONATYPE_PGP_PRIVATE_KEY_PASSWORD,--no-tty,--pinentry-mode,loopback,--batch,--yes,-a,-b \
+              --publishArtifacts __.publishArtifacts \
+              --readTimeout 600000 \
+              --awaitTimeout 600000 \
+              --connectionTimeout 600000 \
+              --shouldRelease true \
+              --bundleName io.eleven19.keep-a-changelog:$GITHUB_SHA
 
       - name: Publish release from tag
         uses: ghalactic/github-release-from-tag@v5

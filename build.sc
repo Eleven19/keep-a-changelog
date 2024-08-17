@@ -10,6 +10,7 @@ import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
 import $ivy.`com.carlosedp::mill-aliases::0.4.1`
 import $ivy.`io.eleven19.mill::mill-crossbuild::0.3.0`
 import $ivy.`com.lihaoyi::mill-contrib-buildinfo:`
+import $ivy.`com.lihaoyi::mill-contrib-sonatypecentral:`
 import $ivy.`com.github.lolgab::mill-mima::0.1.1`
 import mill._, mill.scalalib._, mill.scalajslib._, mill.scalanativelib._, scalafmt._
 import com.goyeau.mill.scalafix.ScalafixModule
@@ -20,6 +21,7 @@ import de.tobiasroeser.mill.vcs.version.VcsVersion
 import mill.local.plugins.ci.release._
 import io.github.davidgregory084.TpolecatModule
 import mill.contrib.buildinfo.BuildInfo
+import mill.contrib.sonatypecentral.SonatypeCentralPublishModule
 
 object keepachangelog extends Cross[KeepAChangelogModule](V.crossScalaVersions) {}
 
@@ -76,12 +78,11 @@ trait KeepAChangelogModule extends Cross.Module[String] with CrossPlatform {
       ivy"com.lihaoyi::sourcecode::${V.sourcecode}"
     )
   }
-
 }
 
-trait KeepAChangelogPublishModule extends CiReleaseModule with JavaModule {
+trait KeepAChangelogPublishModule extends SonatypeCentralPublishModule with JavaModule {
   import mill.scalalib.publish._
-  // def publishVersion = VcsVersion.vcsState().format()
+  def publishVersion = VcsVersion.vcsState().format()
   def packageDescription =
     "Provides types and functions for working with changelog files in the Keep a Changelog format."
   def pomSettings = PomSettings(
@@ -97,11 +98,12 @@ trait KeepAChangelogPublishModule extends CiReleaseModule with JavaModule {
 }
 
 object MyAliases extends Aliases {
-  def testall     = alias("__.test")
-  def compileall  = alias("__.compile")
-  def comptestall = alias("__.compile", "__.test")
-  def publishAll  = alias("mill.local.plugins.ci.release.SonatypeCentralReleaseModule/publishAll")
-  def reformatAll = alias("mill.scalalib.scalafmt.ScalafmtModule/reformatAll __.sources")
+  def testall      = alias("__.test")
+  def compileall   = alias("__.compile")
+  def comptestall  = alias("__.compile", "__.test")
+  def publishAll   = alias("mill.local.plugins.ci.release.SonatypeCentralReleaseModule/publishAll")
+  def setupRelease = alias("mill.local.plugins.ci.release.ReleaseSetupModule/setup")
+  def reformatAll  = alias("mill.scalalib.scalafmt.ScalafmtModule/reformatAll __.sources")
 }
 
 object V {
