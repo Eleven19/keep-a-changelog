@@ -92,6 +92,7 @@ jobs:
               --bundleName "io.eleven19.keep-a-changelog:$GITHUB_SHA"
 
       - name: Publish release from tag
+        if: github.event_name != 'release'
         uses: ghalactic/github-release-from-tag@v5
         with:
           generateReleaseNotes: "true"
