@@ -82,10 +82,10 @@ jobs:
         run: |
           ./mill -i --disable-ticker \
               mill.contrib.sonatypecentral.SonatypeCentralPublishModule/publishAll \
+              --publishArtifacts keepachangelog.__.publishArtifacts \
               --username $SONATYPE_USERNAME \
               --password $SONATYPE_PASSWORD \
               --gpgArgs --passphrase=$PGP_PASSPHRASE,--no-tty,--pinentry-mode,loopback,--batch,--yes,-a,-b \
-              --publishArtifacts keepachangelog.__.publishArtifacts \
               --readTimeout 600000 \
               --awaitTimeout 600000 \
               --shouldRelease true \
