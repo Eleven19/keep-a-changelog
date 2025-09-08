@@ -93,7 +93,7 @@ jobs:
 
       - name: Publish release from tag
         if: github.event_name != 'release'
-        uses: ghalactic/github-release-from-tag@v5
+        uses: ghalactic/github-release-from-tag@v6
         with:
           generateReleaseNotes: "true"
           prerelease: "false"
